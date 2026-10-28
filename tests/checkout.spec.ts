@@ -1,59 +1,118 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/testFixtures';
+import { checkoutData } from '../test-data/users';
 
 test.describe('Checkout E2E Tests', () => {
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+  test('Complete purchase successfully', async ({
+    authenticatedPage,
+    productsPage,
+    cartPage,
+    checkoutPage,
+    page
+  }) => {
+    await productsPage.addBackpackToCart();
+    await expect(productsPage.cartBadge).toHaveText('1');
 
-    await page.locator('#user-name').fill('standard_user');
-    await page.locator('#password').fill('secret_sauce');
-    await page.locator('#login-button').click();
+    await productsPage.openCart();
+    await expect(page).toHaveURL(/\/cart\.html$/);
+    await expect(cartPage.backpackName).toBeVisible();
 
-    await expect(page).toHaveURL(/inventory.html/);
+    await cartPage.startCheckout();
+    await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
+
+    await checkoutPage.fillCustomerInformation(
+      checkoutData.validCustomer.firstName,
+      checkoutData.validCustomer.lastName,
+      checkoutData.validCustomer.postalCode
+    );
+
+    await checkoutPage.continueCheckout();
+    await expect(page).toHaveURL(/\/checkout-step-two\.html$/);
+
+    await expect(checkoutPage.orderProductName)
+      .toHaveText('Sauce Labs Backpack');
+
+    await checkoutPage.finishCheckout();
+
+    await expect(page).toHaveURL(/\/checkout-complete\.html$/);
+
+    await expect(checkoutPage.confirmationMessage)
+      .toHaveText('Thank you for your order!');
   });
 
-  test('Complete purchase successfully', async ({ page }) => {
+  test('Checkout fails when first name is missing', async ({
+    authenticatedPage,
+    productsPage,
+    cartPage,
+    checkoutPage,
+    page
+  }) => {
+    await productsPage.addBackpackToCart();
+    await productsPage.openCart();
+    await cartPage.startCheckout();
 
-    // Step 1: Add product to cart
-    await page.locator(
-      '#add-to-cart-sauce-labs-backpack'
-    ).click();
+    await checkoutPage.fillCustomerInformation(
+      '',
+      'Automation',
+      '12345'
+    );
 
-    // Step 2: Open cart
-    await page.locator('.shopping_cart_link').click();
+    await checkoutPage.continueCheckout();
 
-    await expect(page).toHaveURL(/cart.html/);
+    await expect(checkoutPage.errorMessage)
+      .toContainText('First Name is required');
 
-    // Step 3: Start checkout
-    await page.locator('#checkout').click();
+    await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
+  });
 
-    await expect(page).toHaveURL(/checkout-step-one.html/);
+  test('Checkout fails when last name is missing', async ({
+    authenticatedPage,
+    productsPage,
+    cartPage,
+    checkoutPage,
+    page
+  }) => {
+    await productsPage.addBackpackToCart();
+    await productsPage.openCart();
+    await cartPage.startCheckout();
 
-    // Step 4: Fill customer information
-    await page.locator('#first-name').fill('Eilam');
-    await page.locator('#last-name').fill('Automation');
-    await page.locator('#postal-code').fill('12345');
+    await checkoutPage.fillCustomerInformation(
+      'Eilam',
+      '',
+      '12345'
+    );
 
-    // Step 5: Continue
-    await page.locator('#continue').click();
+    await checkoutPage.continueCheckout();
 
-    await expect(page).toHaveURL(/checkout-step-two.html/);
+    await expect(checkoutPage.errorMessage)
+      .toContainText('Last Name is required');
 
-    // Step 6: Verify product
-    await expect(
-      page.locator('.cart_item .inventory_item_name')
-    ).toHaveText('Sauce Labs Backpack');
+    await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
+  });
 
-    // Step 7: Finish purchase
-    await page.locator('#finish').click();
+  test('Checkout fails when postal code is missing', async ({
+    authenticatedPage,
+    productsPage,
+    cartPage,
+    checkoutPage,
+    page
+  }) => {
+    await productsPage.addBackpackToCart();
+    await productsPage.openCart();
+    await cartPage.startCheckout();
 
-    // Step 8: Verify confirmation page
-    await expect(page).toHaveURL(/checkout-complete.html/);
+    await checkoutPage.fillCustomerInformation(
+      'Eilam',
+      'Automation',
+      ''
+    );
 
-    await expect(
-      page.locator('.complete-header')
-    ).toHaveText('Thank you for your order!');
+    await checkoutPage.continueCheckout();
 
+    await expect(checkoutPage.errorMessage)
+      .toContainText('Postal Code is required');
+
+    await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
   });
 
 });

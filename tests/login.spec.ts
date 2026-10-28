@@ -1,41 +1,59 @@
 import { test, expect } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
+import { users } from '../test-data/users';
 
-// Runs before every test
-test.beforeEach(async ({ page }) => {
-  await page.goto('https://www.saucedemo.com/');
-});
+test.describe('Login Tests', () => {
+  let loginPage: LoginPage;
 
-// TEST 1: Successful Login
-test('Login successfully with valid credentials', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    await loginPage.navigate();
+  });
 
-  await page.locator('#user-name').fill('standard_user');
-  await page.locator('#password').fill('secret_sauce');
+  // TEST 1: Valid login
+  test('User can login with valid credentials', async ({ page }) => {
+    await loginPage.login(
+      users.standard.username,
+      users.standard.password
+    );
 
-  await page.locator('#login-button').click();
+    await loginPage.verifySuccessfulLogin();
 
-  await expect(page).toHaveURL(/inventory.html/);
-  await expect(page.locator('.title')).toHaveText('Products');
-});
+    await expect(
+      page.getByText('Products', { exact: true })
+    ).toBeVisible();
+  });
 
-// TEST 2: Invalid Login
-test('Login fails with invalid credentials', async ({ page }) => {
+  // TEST 2: Invalid login
+  test('User cannot login with invalid credentials', async () => {
+    await loginPage.login(
+      users.invalid.username,
+      users.invalid.password
+    );
 
-  await page.locator('#user-name').fill('wrong_user');
-  await page.locator('#password').fill('wrong_password');
+    await loginPage.verifyLoginError(
+      'Username and password do not match'
+    );
+  });
 
-  await page.locator('#login-button').click();
+  // TEST 3: Empty credentials
+  test('User cannot login with empty credentials', async () => {
+    await loginPage.login('', '');
 
-  await expect(
-    page.locator('[data-test="error"]')
-  ).toContainText('Username and password do not match');
-});
+    await loginPage.verifyLoginError(
+      'Username is required'
+    );
+  });
 
-// TEST 3: Empty Credentials
-test('Login fails with empty credentials', async ({ page }) => {
+  // TEST 4: Locked user
+  test('Locked out user cannot login', async () => {
+    await loginPage.login(
+      users.locked.username,
+      users.locked.password
+    );
 
-  await page.locator('#login-button').click();
-
-  await expect(
-    page.locator('[data-test="error"]')
-  ).toContainText('Username is required');
+    await loginPage.verifyLoginError(
+      'Sorry, this user has been locked out'
+    );
+  });
 });
